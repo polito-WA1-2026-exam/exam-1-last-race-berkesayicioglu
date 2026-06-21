@@ -43,10 +43,10 @@ const verifyPassword = (password, salt, hash) => {
 };
 
 const lines = [
-  { id: 1, name: "Red Line", color: "#c73535" },
-  { id: 2, name: "Blue Line", color: "#2568b8" },
-  { id: 3, name: "Green Line", color: "#2f8f51" },
-  { id: 4, name: "Yellow Line", color: "#d5a21d" },
+  { id: 1, name: "Crimson", color: "#E76F51" },
+  { id: 2, name: "Cyan", color: "#4CC9F0" },
+  { id: 3, name: "Teal", color: "#2EC4B6" },
+  { id: 4, name: "Lavender", color: "#A78BFA" },
 ];
 
 const stations = [
@@ -55,20 +55,42 @@ const stations = [
   { id: 3, name: "Crocevia del Falco", x: 38, y: 30, interchange: 0 },
   { id: 4, name: "Piazza delle Lanterne", x: 58, y: 30, interchange: 1 },
   { id: 5, name: "Fontana Oscura", x: 72, y: 50, interchange: 1 },
-  { id: 6, name: "Borgo Sereno", x: 50, y: 72, interchange: 0 },
-  { id: 7, name: "Viale dei Mosaici", x: 72, y: 72, interchange: 0 },
-  { id: 8, name: "Torre Cinerea", x: 86, y: 50, interchange: 1 },
-  { id: 9, name: "Campo dell'Eco", x: 86, y: 72, interchange: 0 },
+  { id: 6, name: "Borgo Sereno", x: 50, y: 72, interchange: 1 },
+  { id: 7, name: "Viale dei Mosaici", x: 72, y: 76, interchange: 0 },
+  { id: 8, name: "Torre Cinerea", x: 82, y: 50, interchange: 1 },
+  { id: 9, name: "Campo dell'Eco", x: 82, y: 72, interchange: 1 },
   { id: 10, name: "Giardino Alto", x: 18, y: 30, interchange: 0 },
   { id: 11, name: "Mercato Nuovo", x: 18, y: 72, interchange: 0 },
   { id: 12, name: "Darsena Sud", x: 38, y: 86, interchange: 0 },
 ];
 
 const connections = [
-  [1, 2, 1], [2, 10, 1], [10, 3, 1], [3, 4, 1], [4, 5, 1],
-  [1, 5, 2], [5, 8, 2], [8, 9, 2], [9, 7, 2], [7, 6, 2],
-  [2, 11, 3], [11, 12, 3], [12, 6, 3], [6, 1, 3], [1, 4, 3],
-  [4, 8, 4], [8, 5, 4], [5, 7, 4], [7, 6, 4], [6, 2, 4],
+  // Crimson Line
+  [10, 3, 1],
+  [3, 4, 1],
+  [4, 5, 1],
+  [5, 8, 1],
+  [10, 2, 1],
+
+  // Cyan Line
+  [2, 1, 2],
+  [1, 5, 2],
+  [5, 8, 2],
+  [8, 9, 2],
+  [9, 7, 2],
+
+  // Teal Line
+  [2, 11, 3],
+  [11, 12, 3],
+  [12, 6, 3],
+  [6, 1, 3],
+  [1, 4, 3],
+
+  // Lavender Line
+  [2, 6, 4],
+  [6, 7, 4],
+  [7, 5, 4],
+  [5, 4, 4],
 ];
 
 const events = [
@@ -145,12 +167,55 @@ async function initDb() {
       ]);
     }
   }
-  if (!(await get("SELECT id FROM stations LIMIT 1"))) {
-    for (const line of lines) await run("INSERT INTO lines VALUES (?, ?, ?)", [line.id, line.name, line.color]);
-    for (const s of stations) await run("INSERT INTO stations VALUES (?, ?, ?, ?, ?)", [s.id, s.name, s.x, s.y, s.interchange]);
-    for (const [a, b, line] of connections) await run("INSERT INTO connections(from_station, to_station, line_id) VALUES (?, ?, ?)", [a, b, line]);
-    for (const [description, effect] of events) await run("INSERT INTO events(description, effect) VALUES (?, ?)", [description, effect]);
+
+  const hadStations = Boolean(await get("SELECT id FROM stations LIMIT 1"));
+  await syncGameData();
+
+  if (!hadStations && !(await get("SELECT id FROM games LIMIT 1"))) {
     await seedPastGames();
+  }
+}
+
+async function syncGameData() {
+  await run("BEGIN TRANSACTION");
+  try {
+    for (const line of lines) {
+      await run(
+        `INSERT INTO lines(id, name, color) VALUES (?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET name = excluded.name, color = excluded.color`,
+        [line.id, line.name, line.color],
+      );
+    }
+
+    for (const station of stations) {
+      await run(
+        `INSERT INTO stations(id, name, x, y, interchange) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           name = excluded.name,
+           x = excluded.x,
+           y = excluded.y,
+           interchange = excluded.interchange`,
+        [station.id, station.name, station.x, station.y, station.interchange],
+      );
+    }
+
+    await run("DELETE FROM connections");
+    for (const [fromStation, toStation, lineId] of connections) {
+      await run(
+        "INSERT INTO connections(from_station, to_station, line_id) VALUES (?, ?, ?)",
+        [fromStation, toStation, lineId],
+      );
+    }
+
+    await run("DELETE FROM events");
+    for (const [description, effect] of events) {
+      await run("INSERT INTO events(description, effect) VALUES (?, ?)", [description, effect]);
+    }
+
+    await run("COMMIT");
+  } catch (err) {
+    await run("ROLLBACK");
+    throw err;
   }
 }
 
@@ -284,7 +349,16 @@ app.get("/api/network", requireAuth, async (req, res) => res.json(await network(
 app.post("/api/games", requireAuth, async (req, res) => {
   const net = await network();
   const pairs = reachablePairs(net.connections);
-  const [start, destination] = pairs[Math.floor(Math.random() * pairs.length)];
+  const previousGame = await get(
+    "SELECT start_station, destination_station FROM games WHERE user_id = ? ORDER BY id DESC LIMIT 1",
+    [req.user.id],
+  );
+  const freshPairs = previousGame
+    ? pairs.filter(([start, destination]) =>
+        start !== previousGame.start_station || destination !== previousGame.destination_station)
+    : pairs;
+  const choices = freshPairs.length ? freshPairs : pairs;
+  const [start, destination] = choices[Math.floor(Math.random() * choices.length)];
   const result = await run("INSERT INTO games(user_id, start_station, destination_station, started_at) VALUES (?, ?, ?, datetime('now'))", [
     req.user.id,
     start,
@@ -296,7 +370,14 @@ app.post("/api/games", requireAuth, async (req, res) => {
     destinationStation: destination,
     expiresAt: Date.now() + 90_000,
     network: net,
-    segments: net.connections.map((c) => ({ id: c.id, from_station: c.from_station, to_station: c.to_station, line_name: c.line_name })),
+    segments: net.connections.map((c) => ({
+      id: c.id,
+      from_station: c.from_station,
+      to_station: c.to_station,
+      line_id: c.line_id,
+      line_name: c.line_name,
+      color: c.color,
+    })),
   });
 });
 
@@ -319,6 +400,9 @@ app.post("/api/games/:id/submit", requireAuth, async (req, res) => {
   }
 
   const availableEvents = await all("SELECT * FROM events ORDER BY id");
+  if (!availableEvents.length) {
+    return res.status(503).json({ error: "Game events are unavailable. Restart the server to initialize them." });
+  }
   let score = 20;
   const log = [];
   for (let i = 0; i < route.length - 1; i += 1) {
