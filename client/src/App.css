@@ -54,6 +54,16 @@
   box-shadow: var(--shadow);
 }
 
+.topbar::after {
+  content: '';
+  position: absolute;
+  inset: auto 24px -1px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.45;
+}
+
 .brand {
   display: flex;
   align-items: center;
@@ -175,7 +185,7 @@ span.nav-link:hover {
 }
 
 .instructions-page .login-form {
-  align-self: stretch;
+  align-self: start;
 }
 
 .ranking-page {
@@ -256,9 +266,22 @@ span.nav-link:hover {
 }
 
 .game-page {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) 340px;
   gap: 22px;
+}
+
+.game-page::before {
+  content: '';
+  position: fixed;
+  z-index: -1;
+  inset: 20% 6% auto;
+  height: 420px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 14%, transparent), transparent 68%);
+  filter: blur(20px);
+  pointer-events: none;
 }
 
 .card,
@@ -288,6 +311,24 @@ span.nav-link:hover {
   gap: 16px;
 }
 
+.setup-copy {
+  position: sticky;
+  top: 112px;
+  overflow: hidden;
+}
+
+.setup-copy::before {
+  content: '';
+  position: absolute;
+  width: 150px;
+  height: 150px;
+  top: -80px;
+  right: -60px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  pointer-events: none;
+}
+
 .setup-copy p,
 .login-form p {
   line-height: 1.65;
@@ -305,6 +346,31 @@ span.nav-link:hover {
 .setup-steps li::marker {
   color: var(--accent);
   font-weight: 800;
+}
+
+.network-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.network-stats span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 11px 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--pill);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.network-stats strong {
+  color: var(--heading);
+  font-size: 18px;
 }
 
 .panel-head {
@@ -372,6 +438,13 @@ button:hover {
 
 button:active {
   transform: translateY(0);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
+  box-shadow: none;
 }
 
 .primary {
@@ -444,6 +517,14 @@ button:active {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.legend-line {
+  display: inline-block;
+  width: 18px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--legend-color);
 }
 
 .legend-dot {
@@ -524,6 +605,23 @@ button:active {
   filter: drop-shadow(0 0 0.6px var(--accent));
 }
 
+.station.destination .station-dot {
+  fill: var(--success);
+  stroke: white;
+  stroke-width: 0.65;
+  filter: drop-shadow(0 0 1.4px var(--success));
+}
+
+.station.destination .station-ring {
+  stroke: var(--success);
+  opacity: 1;
+}
+
+.station.destination text {
+  fill: var(--success);
+  font-weight: 900;
+}
+
 .station text {
   fill: var(--map-label);
   font-size: 2px;
@@ -539,16 +637,84 @@ button:active {
   stroke-width: 1.1;
   stroke-linecap: round;
   opacity: 0.85;
+  transition: stroke 0.2s ease, stroke-width 0.2s ease;
+}
+
+.route-line.correct {
+  stroke: var(--success);
+  stroke-width: 1.8;
+  opacity: 1;
+  filter: drop-shadow(0 0 1px var(--success));
+}
+
+.route-line.wrong {
+  stroke: var(--danger);
+  stroke-width: 1.8;
+  opacity: 1;
+  filter: drop-shadow(0 0 1px var(--danger));
 }
 
 .game-main {
+  position: relative;
   padding: 22px;
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  box-shadow: 0 22px 60px color-mix(in srgb, var(--accent) 12%, transparent), var(--shadow);
+}
+
+.game-main::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, var(--accent), var(--success), var(--accent));
 }
 
 .phase-bar {
-  margin-bottom: 16px;
-  padding-bottom: 16px;
+  margin: -22px -22px 18px;
+  padding: 22px;
   border-bottom: 1px solid var(--border);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 62%, transparent), transparent 62%),
+    var(--surface);
+}
+
+.game-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.game-status i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 15%, transparent);
+}
+
+.game-status.live i {
+  animation: status-pulse 1.6s ease-in-out infinite;
+}
+
+.game-status.finished {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+@keyframes status-pulse {
+  50% {
+    opacity: 0.4;
+  }
 }
 
 .journey-tags {
@@ -697,7 +863,16 @@ button:active {
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 10px;
-  padding-top: 4px;
+  margin: 0 -22px -22px;
+  padding: 16px 22px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--pill) 78%, var(--surface));
+}
+
+.new-game-prompt {
+  margin-right: auto;
+  color: var(--heading);
+  font-weight: 800;
 }
 
 .segments {
@@ -709,12 +884,32 @@ button:active {
   padding-right: 4px;
 }
 
+.game-page .side-panel {
+  position: sticky;
+  top: 112px;
+  max-height: calc(100vh - 136px);
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+}
+
+.game-page .side-panel::before {
+  content: 'ROUTE INTELLIGENCE';
+  display: block;
+  margin: -22px -22px 20px;
+  padding: 10px 22px;
+  background: var(--heading);
+  color: var(--surface);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+}
+
 .segment-item {
   display: flex;
   align-items: center;
   gap: 10px;
   border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
+  border-left: 3px solid var(--segment-color, var(--accent));
   border-radius: 12px;
   padding: 10px 12px;
   background: var(--pill);
@@ -727,7 +922,7 @@ button:active {
   width: 8px;
   height: 8px;
   border-radius: 999px;
-  background: var(--accent);
+  background: var(--segment-color, var(--accent));
   flex-shrink: 0;
 }
 
@@ -859,4 +1054,213 @@ button:active {
 
 .log-entry.negative strong {
   color: var(--danger);
+}
+
+.modal-backdrop {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(3, 10, 16, 0.72);
+  backdrop-filter: blur(12px);
+  animation: modal-fade 0.18s ease-out;
+}
+
+.leave-modal {
+  position: relative;
+  width: min(460px, 100%);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+  border-radius: 24px;
+  padding: 32px;
+  background: var(--surface);
+  box-shadow: 0 32px 100px rgba(0, 0, 0, 0.38);
+  animation: modal-rise 0.2s ease-out;
+}
+
+.leave-modal::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 5px;
+  background: linear-gradient(90deg, var(--danger), #f59e0b);
+}
+
+.leave-modal h2 {
+  margin: 8px 0;
+  font-size: 30px;
+}
+
+.leave-modal p {
+  margin-bottom: 24px;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.modal-warning {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  margin-bottom: 18px;
+  border-radius: 18px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 28px;
+  font-weight: 900;
+  transform: rotate(-4deg);
+}
+
+.modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.danger-button {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: white;
+}
+
+.danger-button:hover {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 86%, black);
+}
+
+@keyframes modal-fade {
+  from { opacity: 0; }
+}
+
+@keyframes modal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+}
+
+@media (max-width: 980px) {
+  .shell {
+    width: min(100% - 28px, 760px);
+    padding-top: 14px;
+  }
+
+  .topbar {
+    position: relative;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .top-actions,
+  .app-nav {
+    width: 100%;
+  }
+
+  .top-actions {
+    justify-content: space-between;
+  }
+
+  .setup-page,
+  .game-page,
+  .instructions-page {
+    grid-template-columns: 1fr;
+  }
+
+  .setup-copy {
+    position: static;
+  }
+
+  .game-page .side-panel {
+    position: static;
+    max-height: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .shell {
+    width: min(100% - 20px, 560px);
+  }
+
+  .brand-mark {
+    width: 40px;
+    height: 40px;
+  }
+
+  .top-actions,
+  .app-nav,
+  .user-box,
+  .phase-bar,
+  .actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .user-box {
+    border-radius: 14px;
+  }
+
+  .nav-link,
+  .top-actions > .ghost,
+  .user-box button,
+  .actions button {
+    width: 100%;
+  }
+
+  .phase-bar .timer-ring {
+    align-self: center;
+  }
+
+  .map-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .map-legend {
+    max-height: 70px;
+    overflow: auto;
+  }
+
+  .map-wrap,
+  .compact-map {
+    min-height: 440px;
+  }
+
+  .map,
+  .compact-map .map {
+    min-height: 360px;
+    padding: 4px;
+  }
+
+  .game-main,
+  .setup-copy,
+  .login-form,
+  .ranking-card,
+  .side-panel {
+    padding: 16px;
+  }
+
+  .phase-bar {
+    margin: -16px -16px 18px;
+    padding: 16px;
+  }
+
+  .actions {
+    margin: 0 -16px -16px;
+    padding: 14px 16px;
+  }
+
+  .new-game-prompt {
+    margin-right: 0;
+    text-align: center;
+  }
+
+  .modal-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .leave-modal {
+    padding: 24px;
+  }
 }

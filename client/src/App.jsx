@@ -17,9 +17,18 @@ async function api(path, options = {}) {
   return response.json()
 }
 
-function StationMap({ network, route = [], showLines = true, onStationClick, compact = false }) {
+function StationMap({
+  network,
+  route = [],
+  showLines = true,
+  onStationClick,
+  compact = false,
+  destinationId,
+  routeResult,
+}) {
   if (!network) return null
   const stationById = new Map(network.stations.map((station) => [station.id, station]))
+  const lineById = new Map(network.lines.map((line) => [line.id, line]))
   const mapTitle = showLines ? 'Network map' : 'Route planner'
   const mapHint = showLines ? `${network.stations.length} stations` : `${route.length} selected`
 
@@ -32,6 +41,12 @@ function StationMap({ network, route = [], showLines = true, onStationClick, com
         </div>
         {showLines && (
           <div className="map-legend">
+            {network.lines.map((line) => (
+              <span key={line.id}>
+                <i className="legend-line" style={{ '--legend-color': line.color }} />
+                {line.name}
+              </span>
+            ))}
             <span><i className="legend-dot" /> Station</span>
             <span><i className="legend-dot interchange" /> Interchange</span>
           </div>
@@ -42,6 +57,7 @@ function StationMap({ network, route = [], showLines = true, onStationClick, com
           network.connections.map((connection) => {
             const from = stationById.get(connection.from_station)
             const to = stationById.get(connection.to_station)
+            const line = lineById.get(connection.line_id)
             return (
               <line
                 key={connection.id}
@@ -49,7 +65,7 @@ function StationMap({ network, route = [], showLines = true, onStationClick, com
                 y1={from.y}
                 x2={to.x}
                 y2={to.y}
-                stroke={connection.color}
+                stroke={line?.color}
                 strokeWidth="1.6"
                 strokeLinecap="round"
               />
@@ -59,17 +75,28 @@ function StationMap({ network, route = [], showLines = true, onStationClick, com
           const from = stationById.get(stationId)
           const to = stationById.get(route[index + 1])
           if (!from || !to) return null
-          return <line key={`${stationId}-${index}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} className="route-line" />
+          const resultClass = routeResult === true ? 'correct' : routeResult === false ? 'wrong' : ''
+          return (
+            <line
+              key={`${stationId}-${index}`}
+              x1={from.x}
+              y1={from.y}
+              x2={to.x}
+              y2={to.y}
+              className={`route-line ${resultClass}`}
+            />
+          )
         })}
         {network.stations.map((station) => {
           const selected = route.includes(station.id)
           const isCurrent = route[route.length - 1] === station.id
+          const isDestination = station.id === destinationId
           const canSelect = onStationClick && !selected
           const radius = station.interchange ? 1.6 : 1.2
           return (
             <g
               key={station.id}
-              className={`station ${selected ? 'selected' : ''} ${isCurrent ? 'current' : ''} ${canSelect ? 'clickable' : ''}`}
+              className={`station ${selected ? 'selected' : ''} ${isCurrent ? 'current' : ''} ${isDestination ? 'destination' : ''} ${canSelect ? 'clickable' : ''}`}
             >
               {canSelect && (
                 <circle
@@ -181,17 +208,20 @@ function Ranking({ ranking }) {
   )
 }
 
-function Game({ game, onFinished, onBackToSetup }) {
+function Game({ game, onFinished, onBackToSetup, onPlayAgain, paused }) {
   const [route, setRoute] = useState([game.startStation])
   const [seconds, setSeconds] = useState(90)
   const [result, setResult] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const stationById = useMemo(() => new Map(game.network.stations.map((station) => [station.id, station])), [game])
   const start = stationById.get(game.startStation)
   const destination = stationById.get(game.destinationStation)
 
   const submitRoute = useCallback(async (currentRoute = route) => {
-    if (result) return
+    if (result || submitting) return
+    setSubmitting(true)
+    setError('')
     try {
       const data = await api(`/games/${game.id}/submit`, {
         method: 'POST',
@@ -201,10 +231,13 @@ function Game({ game, onFinished, onBackToSetup }) {
       onFinished()
     } catch (err) {
       setError(err.message)
+    } finally {
+      setSubmitting(false)
     }
-  }, [game.id, onFinished, result, route])
+  }, [game.id, onFinished, result, route, submitting])
 
   useEffect(() => {
+    if (result || submitting || paused) return undefined
     const interval = setInterval(() => {
       setSeconds((value) => {
         if (value <= 1) {
@@ -216,7 +249,7 @@ function Game({ game, onFinished, onBackToSetup }) {
       })
     }, 1000)
     return () => clearInterval(interval)
-  }, [route, result, submitRoute])
+  }, [paused, route, result, submitRoute, submitting])
 
   function addStation(station) {
     if (result) return
@@ -231,9 +264,16 @@ function Game({ game, onFinished, onBackToSetup }) {
       <div className="game-main card">
         <div className="phase-bar">
           <div>
-            <span className="eyebrow">Planning phase</span>
+            <span className={`game-status ${result ? 'finished' : 'live'}`}>
+              <i aria-hidden="true" />
+              {result ? 'Game finished' : 'Planning live'}
+            </span>
             <h2>{start.name} → {destination.name}</h2>
-            <p className="muted">Lines are hidden. Click stations in order to build your route.</p>
+            <p className="muted">
+              {result
+                ? 'Your route is locked. Review the result or start a fresh journey.'
+                : 'Lines are hidden. Click stations in order to build your route.'}
+            </p>
             <div className="journey-tags">
               <span className="journey-tag start">Start: {start.name}</span>
               <span className="journey-tag end">Goal: {destination.name}</span>
@@ -241,7 +281,14 @@ function Game({ game, onFinished, onBackToSetup }) {
           </div>
           <Timer seconds={seconds} />
         </div>
-        <StationMap network={game.network} route={route} showLines={false} onStationClick={addStation} />
+        <StationMap
+          network={game.network}
+          route={route}
+          showLines={false}
+          onStationClick={result || submitting ? undefined : addStation}
+          destinationId={game.destinationStation}
+          routeResult={result?.valid}
+        />
         <div className="route-builder">
           <span className="route-builder-label">Your route</span>
           <div className="route-steps">
@@ -252,6 +299,7 @@ function Game({ game, onFinished, onBackToSetup }) {
                   type="button"
                   className={`route-step ${index === route.length - 1 ? 'current' : ''}`}
                   onClick={() => setRoute(route.slice(0, index + 1))}
+                  disabled={Boolean(result) || submitting}
                 >
                   <span className="route-step-num">{index + 1}</span>
                   {stationById.get(id)?.name}
@@ -261,9 +309,28 @@ function Game({ game, onFinished, onBackToSetup }) {
           </div>
         </div>
         <div className="actions">
-          <button type="button" onClick={onBackToSetup}>Back to setup</button>
-          <button type="button" onClick={() => setRoute([game.startStation])}>Reset route</button>
-          <button type="button" className="primary" onClick={() => submitRoute()}>Submit route</button>
+          {!result ? (
+            <>
+              <button type="button" onClick={onBackToSetup} disabled={submitting}>Back to setup</button>
+              <button
+                type="button"
+                onClick={() => setRoute([game.startStation])}
+                disabled={submitting}
+              >
+                Reset route
+              </button>
+              <button type="button" className="primary" onClick={() => submitRoute()} disabled={submitting}>
+                {submitting ? 'Submitting...' : 'Submit route'}
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="new-game-prompt">Game finished. Would you like to start a new game?</span>
+              <button type="button" disabled>Reset route</button>
+              <button type="button" onClick={onBackToSetup}>Not now</button>
+              <button type="button" className="primary" onClick={onPlayAgain}>Play again</button>
+            </>
+          )}
         </div>
         {error && <p className="error">{error}</p>}
       </div>
@@ -278,7 +345,11 @@ function Game({ game, onFinished, onBackToSetup }) {
         <p className="muted">Each segment can be used once. Line changes only at interchange stations.</p>
         <div className="segments">
           {game.segments.map((segment) => (
-            <div className="segment-item" key={segment.id}>
+            <div
+              className="segment-item"
+              key={segment.id}
+              style={{ '--segment-color': segment.color }}
+            >
               <span className="segment-dot" aria-hidden="true" />
               <span>
                 {stationById.get(segment.from_station)?.name}
@@ -332,6 +403,11 @@ function SetupPage({ network, onStartGame }) {
         <span className="eyebrow">Setup page</span>
         <h2>Study the network before the lines disappear</h2>
         <p>Once the game starts, you will see station names and the segment list, but not the colored line map. Plan the path, then submit before the timer expires.</p>
+        <div className="network-stats" aria-label="Network summary">
+          <span><strong>{network?.stations.length || 0}</strong> stations</span>
+          <span><strong>{network?.lines.length || 0}</strong> lines</span>
+          <span><strong>90</strong> seconds</span>
+        </div>
         <ol className="setup-steps">
           <li>Memorize the colored routes on the map</li>
           <li>Start the game and rebuild your path station by station</li>
@@ -354,9 +430,11 @@ function AppNav({ user, page, onNavigate, onLogout }) {
           <button type="button" className={page === 'setup' ? 'nav-link active' : 'nav-link'} onClick={() => onNavigate('setup')}>
             Setup
           </button>
-          <button type="button" className={page === 'ranking' ? 'nav-link active' : 'nav-link'} onClick={() => onNavigate('ranking')}>
-            Ranking
-          </button>
+          {page !== 'game' && (
+            <button type="button" className={page === 'ranking' ? 'nav-link active' : 'nav-link'} onClick={() => onNavigate('ranking')}>
+              Ranking
+            </button>
+          )}
           <div className="user-box">
             <span className="user-avatar" aria-hidden="true">{user.name.slice(0, 1).toUpperCase()}</span>
             <span className="user-name">{user.name}</span>
@@ -365,6 +443,46 @@ function AppNav({ user, page, onNavigate, onLogout }) {
         </>
       )}
     </nav>
+  )
+}
+
+function ConfirmationModal({
+  eyebrow,
+  title,
+  message,
+  cancelLabel,
+  confirmLabel,
+  onCancel,
+  onConfirm,
+}) {
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') onCancel()
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onCancel])
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={onCancel}>
+      <section
+        className="leave-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirmation-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="modal-warning" aria-hidden="true">!</div>
+        <span className="eyebrow">{eyebrow}</span>
+        <h2 id="confirmation-title">{title}</h2>
+        <p>{message}</p>
+        <div className="modal-actions">
+          <button type="button" onClick={onCancel}>{cancelLabel}</button>
+          <button type="button" className="danger-button" onClick={onConfirm}>{confirmLabel}</button>
+        </div>
+      </section>
+    </div>
   )
 }
 
@@ -377,6 +495,8 @@ function App() {
   const [page, setPage] = useState('instructions')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [theme, setTheme] = useState(() => localStorage.getItem('last-race-theme') || 'light')
 
   const refreshInstructions = useCallback(async () => {
@@ -414,10 +534,11 @@ function App() {
   }, [user, page, refreshRanking])
 
   useEffect(() => {
-    // Fetch authenticated-only data after the session is known.
+    if (!user || page !== 'setup' || game) return
+    // Refresh the database-backed network whenever the setup page is opened.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshPrivateData().catch((err) => setError(err.message))
-  }, [refreshPrivateData])
+  }, [game, page, refreshPrivateData, user])
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -440,8 +561,13 @@ function App() {
     }
   }
 
+  async function playAgain() {
+    await startGame()
+  }
+
   async function logout() {
     await api('/sessions/current', { method: 'DELETE' })
+    setShowLogoutConfirm(false)
     setUser(null)
     setGame(null)
     setNetwork(null)
@@ -455,11 +581,20 @@ function App() {
   function navigate(nextPage) {
     setError('')
     if (!user) return
+    if (game && nextPage === 'setup') {
+      setShowLeaveConfirm(true)
+      return
+    }
     setPage(nextPage)
     if (nextPage === 'setup') setGame(null)
   }
 
   function handleBackToSetup() {
+    setShowLeaveConfirm(true)
+  }
+
+  function confirmBackToSetup() {
+    setShowLeaveConfirm(false)
     setGame(null)
     setPage('setup')
   }
@@ -488,7 +623,12 @@ function App() {
           </div>
         </div>
         <div className="top-actions">
-          <AppNav user={user} page={game ? 'game' : page} onNavigate={navigate} onLogout={logout} />
+          <AppNav
+            user={user}
+            page={game ? 'game' : page}
+            onNavigate={navigate}
+            onLogout={() => setShowLogoutConfirm(true)}
+          />
           <button type="button" className="ghost" onClick={toggleTheme}>
             {theme === 'dark' ? 'Light mode' : 'Dark mode'}
           </button>
@@ -498,7 +638,14 @@ function App() {
       {error && <p className="error">{error}</p>}
 
       {game ? (
-        <Game game={game} onFinished={afterGameFinished} onBackToSetup={handleBackToSetup} />
+        <Game
+          key={game.id}
+          game={game}
+          onFinished={afterGameFinished}
+          onBackToSetup={handleBackToSetup}
+          onPlayAgain={playAgain}
+          paused={showLeaveConfirm || showLogoutConfirm}
+        />
       ) : user && page === 'ranking' ? (
         <RankingPage ranking={ranking} />
       ) : user && page === 'setup' ? (
@@ -506,6 +653,32 @@ function App() {
       ) : !user ? (
         <InstructionsPage instructions={instructions} onLogin={handleLogin} />
       ) : null}
+
+      {showLeaveConfirm && (
+        <ConfirmationModal
+          eyebrow="Active journey"
+          title="Leave this game?"
+          message="Your current route and remaining time will be abandoned. You can start a new game from Setup."
+          cancelLabel="Stay in game"
+          confirmLabel="Leave game"
+          onCancel={() => setShowLeaveConfirm(false)}
+          onConfirm={confirmBackToSetup}
+        />
+      )}
+
+      {showLogoutConfirm && (
+        <ConfirmationModal
+          eyebrow="Account session"
+          title="Log out now?"
+          message={game
+            ? 'Logging out will also abandon your active game and current route.'
+            : 'You will need to enter your credentials again to play.'}
+          cancelLabel="Stay logged in"
+          confirmLabel="Log out"
+          onCancel={() => setShowLogoutConfirm(false)}
+          onConfirm={logout}
+        />
+      )}
     </main>
   )
 }
