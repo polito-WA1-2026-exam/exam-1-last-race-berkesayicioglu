@@ -143,9 +143,9 @@ npm run build
 
 ## Screenshots
 
-![Ranking and setup](./img/ranking.svg)
+![Ranking and setup](exam-1-last-race-berkesayicioglu\img\gameplay.svg)
 
-![Game planning](./img/game.svg)
+![Game planning](exam-1-last-race-berkesayicioglu\img\ranking.svg)
 
 ## Use of AI Tools
 
