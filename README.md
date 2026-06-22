@@ -143,9 +143,9 @@ npm run build
 
 ## Screenshots
 
-![Ranking and setup](./img/ranking.svg)
+![Ranking and setup](./img/ranking.png)
 
-![Game planning](./img/gameplay.svg)
+![Game planning](./img/gameplay.png)
 
 ## Use of AI Tools
 
