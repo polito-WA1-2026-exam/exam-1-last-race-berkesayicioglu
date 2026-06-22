@@ -50,18 +50,18 @@ const lines = [
 ];
 
 const stations = [
-  { id: 1, name: "Centrale", x: 50, y: 50, interchange: 1 },
-  { id: 2, name: "Porta Velaria", x: 28, y: 50, interchange: 1 },
-  { id: 3, name: "Crocevia del Falco", x: 38, y: 30, interchange: 0 },
-  { id: 4, name: "Piazza delle Lanterne", x: 58, y: 30, interchange: 1 },
-  { id: 5, name: "Fontana Oscura", x: 72, y: 50, interchange: 1 },
-  { id: 6, name: "Borgo Sereno", x: 50, y: 72, interchange: 1 },
-  { id: 7, name: "Viale dei Mosaici", x: 72, y: 76, interchange: 0 },
-  { id: 8, name: "Torre Cinerea", x: 82, y: 50, interchange: 1 },
-  { id: 9, name: "Campo dell'Eco", x: 82, y: 72, interchange: 1 },
-  { id: 10, name: "Giardino Alto", x: 18, y: 30, interchange: 0 },
-  { id: 11, name: "Mercato Nuovo", x: 18, y: 72, interchange: 0 },
-  { id: 12, name: "Darsena Sud", x: 38, y: 86, interchange: 0 },
+  { id: 1, name: "Yenikapi", x: 50, y: 50, interchange: 1 },
+  { id: 2, name: "Nisantasi", x: 28, y: 50, interchange: 1 },
+  { id: 3, name: "Levent", x: 38, y: 30, interchange: 0 },
+  { id: 4, name: "Taksim", x: 58, y: 30, interchange: 1 },
+  { id: 5, name: "Kadikoy", x: 72, y: 50, interchange: 1 },
+  { id: 6, name: "Uskudar", x: 50, y: 72, interchange: 1 },
+  { id: 7, name: "Kartal", x: 72, y: 76, interchange: 0 },
+  { id: 8, name: "Bostanci", x: 82, y: 50, interchange: 1 },
+  { id: 9, name: "Levent", x: 82, y: 72, interchange: 1 },
+  { id: 10, name: "Haciosman", x: 18, y: 30, interchange: 0 },
+  { id: 11, name: "Bagcilar", x: 18, y: 72, interchange: 0 },
+  { id: 12, name: "Atakoy", x: 38, y: 86, interchange: 0 },
 ];
 
 const connections = [
@@ -108,6 +108,8 @@ const users = [
   ["alice@student.test", "alice", "Alice Lumen"],
   ["berke@student.test", "berke", "Berke Sayicioglu"],
   ["marta@student.test", "marta", "Marta Ferro"],
+  ["berra@student.test", "berra", "Berra Turgut"],
+  ["can@student.test", "can", "Can Kaya"],
 ];
 
 async function initDb() {
@@ -156,8 +158,9 @@ async function initDb() {
     FOREIGN KEY(user_id) REFERENCES users(id)
   )`);
 
-  if (!(await get("SELECT id FROM users LIMIT 1"))) {
-    for (const [email, password, name] of users) {
+  for (const [email, password, name] of users) {
+    const existingUser = await get("SELECT id FROM users WHERE email = ?", [email]);
+    if (!existingUser) {
       const { salt, hash } = hashPassword(password);
       await run("INSERT INTO users(email, name, salt, password_hash) VALUES (?, ?, ?, ?)", [
         email,
@@ -165,6 +168,8 @@ async function initDb() {
         salt,
         hash,
       ]);
+    } else {
+      await run("UPDATE users SET name = ? WHERE id = ?", [name, existingUser.id]);
     }
   }
 
